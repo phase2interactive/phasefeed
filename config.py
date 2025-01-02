@@ -21,7 +21,11 @@ TRANSCRIPTION_MODE = "openai"  # Options: "local" or "openai"
 # MLX Whisper model configuration (for local transcription)
 WHISPER_MODEL = "mlx-community/distil-whisper-large-v3"
 
-# Ollama configuration
+# Summarization configuration
+SUMMARIZATION_MODE = "openai"  # Options: "local" or "openai"
+OPENAI_SUMMARY_MODEL = "gpt-4o-2024-11-20"  # Model to use for OpenAI summarization
+
+# Ollama configuration used for local summarization
 OLLAMA_URL = "http://localhost:11434"
 OLLAMA_MODEL = "qwen2.5:3b"
 

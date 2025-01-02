@@ -3,9 +3,164 @@ import logging
 from ollama import Client
 from database import PodcastEpisode, get_db_session, update_episode_content
 import config
+import openai
+from abc import ABC, abstractmethod
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+class BaseSummarizer(ABC):
+    @abstractmethod
+    def generate_summary(self, text: str, podcast_name: str, episode_title: str, is_chunk: bool = False) -> str:
+        """Generate a summary of the given text."""
+        pass
+
+    @abstractmethod
+    def combine_chunk_summaries(self, chunk_summaries: list[str], metadata: dict) -> str:
+        """Combine multiple chunk summaries into a final summary."""
+        pass
+
+class LocalOllamaSummarizer(BaseSummarizer):
+    def __init__(self):
+        self.client = Client(host=config.OLLAMA_URL)
+
+    def generate_summary(self, text: str, podcast_name: str, episode_title: str, is_chunk: bool = False) -> str:
+        if is_chunk:
+            prompt = f"""Please provide a brief summary of this section of a transcript from the podcast '{podcast_name}', episode '{episode_title}'. Focus on:
+            1. Main points discussed
+            2. Key information
+            3. Important quotes or moments
+
+            Use bullet points when appropriate. Do not use markdown formatting. 
+            Be sure to include ALL relevant information discussed in this episode. Do not leave out any important information.
+
+            Transcript section:
+            {text}
+
+            Summary (do not include any markdown formatting):"""
+        else:
+            prompt = f"""Please provide a concise summary of the podcast '{podcast_name}', episode '{episode_title}'. Focus on:
+            1. Main topics discussed
+            2. Key takeaways
+            3. Important quotes or moments
+
+            Use bullet points when appropriate. Do not use markdown formatting. 
+            Be sure to include ALL relevant information discussed in this episode. Do not leave out any important information.
+
+            Transcript:
+            {text}
+
+            Summary (do not include any markdown formatting):"""
+
+        try:
+            response = self.client.generate(
+                model=config.OLLAMA_MODEL,
+                prompt=prompt,
+                stream=False
+            )
+            return response['response']
+        except Exception as e:
+            logger.error(f"Error calling Ollama API: {e}")
+            return None
+
+    def combine_chunk_summaries(self, chunk_summaries: list[str], metadata: dict) -> str:
+        combined_text = "\n\n".join(chunk_summaries)
+        
+        prompt = f"""I have multiple summaries from different sections of a podcast episode. Please create a coherent final summary that combines these sections.
+        Focus on:
+        1. Main topics and themes
+        2. Key takeaways
+        3. Important moments or quotes
+
+        Use bullet points when appropriate. Do not use markdown formatting. 
+        Be sure to include ALL relevant information discussed in these episodes. Do not leave out any important information.
+
+        Individual section summaries:
+        {combined_text}
+
+        Please provide a unified summary (do not include any markdown formatting):"""
+
+        try:
+            response = self.client.generate(
+                model=config.OLLAMA_MODEL,
+                prompt=prompt,
+                stream=False
+            )
+            return response['response']
+        except Exception as e:
+            logger.error(f"Error calling Ollama API when combining summaries: {e}")
+            return None
+
+class OpenAISummarizer(BaseSummarizer):
+    def __init__(self):
+        self.client = openai.OpenAI()
+
+    def generate_summary(self, text: str, podcast_name: str, episode_title: str, is_chunk: bool = False) -> str:
+        if is_chunk:
+            system_prompt = "You are a podcast summarization assistant. Provide clear, concise summaries focusing on main points, key information, and important quotes."
+            user_prompt = f"""Summarize this section of a transcript from the podcast '{podcast_name}', episode '{episode_title}'. Focus on:
+            1. Main points discussed
+            2. Key information
+            3. Important quotes or moments
+
+            Transcript section:
+            {text}"""
+        else:
+            system_prompt = "You are a podcast summarization assistant. Provide comprehensive episode summaries focusing on main topics, key takeaways, and important moments."
+            user_prompt = f"""Summarize the podcast '{podcast_name}', episode '{episode_title}'. Focus on:
+            1. Main topics discussed
+            2. Key takeaways
+            3. Important quotes or moments
+
+            Transcript:
+            {text}"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=config.OPENAI_SUMMARY_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ]
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Error calling OpenAI API: {e}")
+            return None
+
+    def combine_chunk_summaries(self, chunk_summaries: list[str], metadata: dict) -> str:
+        combined_text = "\n\n".join(chunk_summaries)
+        
+        system_prompt = "You are a podcast summarization assistant. Create unified, coherent summaries from multiple section summaries."
+        user_prompt = f"""Create a unified summary from these section summaries of a podcast episode. Focus on:
+        1. Main topics and themes
+        2. Key takeaways
+        3. Important moments or quotes
+
+        Individual section summaries:
+        {combined_text}"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=config.OPENAI_SUMMARY_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ]
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Error calling OpenAI API when combining summaries: {e}")
+            return None
+
+def get_summarizer() -> BaseSummarizer:
+    """Factory function to get the appropriate summarizer based on configuration."""
+    if config.SUMMARIZATION_MODE == "local":
+        return LocalOllamaSummarizer()
+    elif config.SUMMARIZATION_MODE == "openai":
+        return OpenAISummarizer()
+    else:
+        raise ValueError(f"Invalid summarization mode: {config.SUMMARIZATION_MODE}")
 
 def chunk_text(text, chunk_size=config.TRANSCRIPT_CHUNK_SIZE, overlap=config.TRANSCRIPT_CHUNK_OVERLAP):
     """Split text into overlapping chunks of approximately chunk_size characters.
@@ -44,86 +199,6 @@ def chunk_text(text, chunk_size=config.TRANSCRIPT_CHUNK_SIZE, overlap=config.TRA
     
     return chunks
 
-def generate_summary(text, podcast_name, episode_title, is_chunk=False):
-    """Generate a summary using Ollama.
-    
-    Args:
-        text (str): Text to summarize
-        podcast_name (str): Name of the podcast
-        episode_title (str): Title of the episode
-        is_chunk (bool): Whether this is a chunk of a larger text
-    """
-    if is_chunk:
-        prompt = f"""Please provide a brief summary of this section of a transcript from the podcast '{podcast_name}', episode '{episode_title}'. Focus on:
-        1. Main points discussed
-        2. Key information
-        3. Important quotes or moments
-
-        Use bullet points when appropriate. Do not use markdown formatting. 
-        Be sure to include ALL relevant information discussed in this episode. Do not leave out any important information.
-
-        Transcript section:
-        {text}
-
-        Summary:"""
-    else:
-        prompt = f"""Please provide a concise summary of the podcast '{podcast_name}', episode '{episode_title}'. Focus on:
-        1. Main topics discussed
-        2. Key takeaways
-        3. Important quotes or moments
-
-        Use bullet points when appropriate. Do not use markdown formatting. 
-        Be sure to include ALL relevant information discussed in this episode. Do not leave out any important information.
-
-        Transcript:
-        {text}
-
-        Summary:"""
-
-    try:
-        client = Client(host=config.OLLAMA_URL)
-        response = client.generate(
-            model=config.OLLAMA_MODEL,
-            prompt=prompt,
-            stream=False
-        )
-        return response['response']
-            
-    except Exception as e:
-        logger.error(f"Error calling Ollama API: {e}")
-        return None
-
-def combine_chunk_summaries(chunk_summaries, metadata):
-    """Combine chunk summaries into a final coherent summary."""
-    combined_text = "\n\n".join(chunk_summaries)
-    
-    prompt = f"""I have multiple summaries from different sections of a podcast episode. Please create a coherent final summary that combines these sections.
-    Focus on:
-    1. Main topics and themes
-    2. Key takeaways
-    3. Important moments or quotes
-
-    Use bullet points when appropriate. Do not use markdown formatting. 
-    Be sure to include ALL relevant information discussed in these episodes. Do not leave out any important information.
-
-    Individual section summaries:
-    {combined_text}
-
-    Please provide a unified summary:"""
-
-    try:
-        client = Client(host=config.OLLAMA_URL)
-        response = client.generate(
-            model=config.OLLAMA_MODEL,
-            prompt=prompt,
-            stream=False
-        )
-        return response['response']
-            
-    except Exception as e:
-        logger.error(f"Error calling Ollama API when combining summaries: {e}")
-        return None
-
 def summarize_episodes():
     """Find all transcribed but not summarized episodes and generate summaries."""
     session = get_db_session()
@@ -132,6 +207,8 @@ def summarize_episodes():
         .filter_by(transcribed=True, summarized=False)
         .all()
     )
+
+    summarizer = get_summarizer()
 
     for ep in episodes:
         if not ep.transcript_path or not os.path.exists(ep.transcript_path):
@@ -160,7 +237,7 @@ def summarize_episodes():
                 
                 for i, chunk in enumerate(chunks, 1):
                     logger.info(f"Processing chunk {i} of {len(chunks)}...")
-                    chunk_summary = generate_summary(chunk, ep.show.title, ep.episode_title, is_chunk=True)
+                    chunk_summary = summarizer.generate_summary(chunk, ep.show.title, ep.episode_title, is_chunk=True)
                     if chunk_summary:
                         chunk_summaries.append(chunk_summary)
                 
@@ -175,10 +252,10 @@ def summarize_episodes():
                     'date': ep.pub_date,
                     'duration': ep.duration
                 }
-                summary = combine_chunk_summaries(chunk_summaries, metadata)
+                summary = summarizer.combine_chunk_summaries(chunk_summaries, metadata)
             else:
                 # For shorter transcripts, summarize directly
-                summary = generate_summary(transcript_text, ep.show.title, ep.episode_title)
+                summary = summarizer.generate_summary(transcript_text, ep.show.title, ep.episode_title)
                 if summary:
                     summary = summary.strip()
             
