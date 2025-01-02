@@ -13,8 +13,8 @@ from transcriber import (
 )
 from summarizer import summarize_episodes
 import config
+import openlit
 
-# Load environment variables from .env file
 load_dotenv()
 
 logging.basicConfig(
@@ -22,6 +22,14 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Initialize OpenLIT if OTLP endpoint is configured
+otlp_endpoint = os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT')
+if otlp_endpoint:
+    openlit.init()
+    logger.info(f"OpenLIT initialized with endpoint: {otlp_endpoint}")
+else:
+    logger.warning("OTEL_EXPORTER_OTLP_ENDPOINT not set, OpenLIT initialization skipped")
 
 def get_transcriber():
     """Initialize and return the appropriate transcriber based on configuration."""

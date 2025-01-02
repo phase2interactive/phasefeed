@@ -60,3 +60,21 @@ The app will:
 
 Audio files are stored in `~/Podcasts/` by default
 Transcripts are stored in `~/Podcasts/Transcripts/` 
+
+## Observability with OpenLIT (optional)
+
+This project uses OpenLIT to track observability metrics. To enable, set the `OTEL_EXPORTER_OTLP_ENDPOINT` your .env file or set the environment variable in your shell.
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
+```
+
+Clone the OpenLIT repo:
+```bash
+git clone git@github.com:openlit/openlit.git
+```
+
+Start Docker Compose:
+```bash
+docker compose up -d
+```

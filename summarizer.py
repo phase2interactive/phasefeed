@@ -1,7 +1,7 @@
 import os
-import requests
 import logging
-from database import PodcastEpisode, get_db_session
+from ollama import Client
+from database import PodcastEpisode, get_db_session, update_episode_content
 import config
 
 logging.basicConfig(level=logging.INFO)
@@ -55,43 +55,39 @@ def generate_summary(text, podcast_name, episode_title, is_chunk=False):
     """
     if is_chunk:
         prompt = f"""Please provide a brief summary of this section of a transcript from the podcast '{podcast_name}', episode '{episode_title}'. Focus on:
-1. Main points discussed
-2. Key information
+        1. Main points discussed
+        2. Key information
+        3. Important quotes or moments
 
-Use bullet points when appropriate. Do not use markdown formatting. Be sure to include all relevant information discussed in this episode.
+        Use bullet points when appropriate. Do not use markdown formatting. 
+        Be sure to include ALL relevant information discussed in this episode. Do not leave out any important information.
 
-Transcript section:
-{text}
+        Transcript section:
+        {text}
 
-Summary:"""
+        Summary:"""
     else:
         prompt = f"""Please provide a concise summary of the podcast '{podcast_name}', episode '{episode_title}'. Focus on:
-1. Main topics discussed
-2. Key takeaways
-3. Important quotes or moments
+        1. Main topics discussed
+        2. Key takeaways
+        3. Important quotes or moments
 
-Use bullet points when appropriate. Do not use markdown formatting. Be sure to include all relevant information discussed in this episode.
+        Use bullet points when appropriate. Do not use markdown formatting. 
+        Be sure to include ALL relevant information discussed in this episode. Do not leave out any important information.
 
-Transcript:
-{text}
+        Transcript:
+        {text}
 
-Summary:"""
+        Summary:"""
 
     try:
-        response = requests.post(
-            config.OLLAMA_URL,
-            json={
-                "model": config.OLLAMA_MODEL,
-                "prompt": prompt,
-                "stream": False
-            }
+        client = Client(host=config.OLLAMA_URL)
+        response = client.generate(
+            model=config.OLLAMA_MODEL,
+            prompt=prompt,
+            stream=False
         )
-        
-        if response.status_code == 200:
-            return response.json()["response"]
-        else:
-            logger.error(f"Ollama API error: {response.status_code}")
-            return None
+        return response['response']
             
     except Exception as e:
         logger.error(f"Error calling Ollama API: {e}")
@@ -102,31 +98,27 @@ def combine_chunk_summaries(chunk_summaries, metadata):
     combined_text = "\n\n".join(chunk_summaries)
     
     prompt = f"""I have multiple summaries from different sections of a podcast episode. Please create a coherent final summary that combines these sections.
-Focus on:
-1. Main topics and themes
-2. Key takeaways
-3. Important moments or quotes
+    Focus on:
+    1. Main topics and themes
+    2. Key takeaways
+    3. Important moments or quotes
 
-Individual section summaries:
-{combined_text}
+    Use bullet points when appropriate. Do not use markdown formatting. 
+    Be sure to include ALL relevant information discussed in these episodes. Do not leave out any important information.
 
-Please provide a unified summary:"""
+    Individual section summaries:
+    {combined_text}
+
+    Please provide a unified summary:"""
 
     try:
-        response = requests.post(
-            config.OLLAMA_URL,
-            json={
-                "model": config.OLLAMA_MODEL,
-                "prompt": prompt,
-                "stream": False
-            }
+        client = Client(host=config.OLLAMA_URL)
+        response = client.generate(
+            model=config.OLLAMA_MODEL,
+            prompt=prompt,
+            stream=False
         )
-        
-        if response.status_code == 200:
-            return response.json()["response"]
-        else:
-            logger.error(f"Ollama API error when combining summaries: {response.status_code}")
-            return None
+        return response['response']
             
     except Exception as e:
         logger.error(f"Error calling Ollama API when combining summaries: {e}")
@@ -193,7 +185,7 @@ def summarize_episodes():
             if not summary:
                 continue
                 
-            # Save summary
+            # Save summary to file
             safe_filename = "".join([c for c in ep.episode_title if c.isalpha() or c.isdigit() or c in ' ._-']).rstrip()
             summary_path = os.path.join(
                 config.TRANSCRIPT_STORAGE_PATH,
@@ -206,6 +198,10 @@ def summarize_episodes():
             # Update database
             ep.summary_path = summary_path
             ep.summarized = True
+            
+            # Update episode_content
+            update_episode_content(session, ep)
+            
             session.commit()
             
             logger.info(f"Successfully summarized: {ep.episode_title}")

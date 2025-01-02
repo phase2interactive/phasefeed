@@ -1,5 +1,4 @@
 feedparser
-requests
 SQLAlchemy
 mlx-whisper
 fastapi
@@ -13,3 +12,5 @@ tqdm
 openai>=1.0.0
 python-dotenv
 pydub
+openlit
+ollama

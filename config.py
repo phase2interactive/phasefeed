@@ -22,7 +22,7 @@ TRANSCRIPTION_MODE = "openai"  # Options: "local" or "openai"
 WHISPER_MODEL = "mlx-community/distil-whisper-large-v3"
 
 # Ollama configuration
-OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_URL = "http://localhost:11434"
 OLLAMA_MODEL = "qwen2.5:3b"
 
 # Transcript processing configuration
