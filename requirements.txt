@@ -1,0 +1,15 @@
+feedparser
+requests
+SQLAlchemy
+mlx-whisper
+fastapi
+uvicorn
+apscheduler
+plyer 
+fastapi 
+uvicorn 
+jinja2
+tqdm
+openai>=1.0.0
+python-dotenv
+pydub

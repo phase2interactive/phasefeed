@@ -8,6 +8,8 @@ from database import PodcastEpisode, get_db_session
 import config
 from tqdm import tqdm
 from progress_handler import ProgressListener, create_progress_listener_handle
+from pydub import AudioSegment
+import tempfile
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -48,16 +50,106 @@ class LocalWhisperTranscriber(BaseTranscriber):
 class OpenAIWhisperTranscriber(BaseTranscriber):
     def __init__(self):
         self.client = openai.OpenAI()  # OpenAI will automatically use OPENAI_API_KEY from env
+        self.max_file_size = 24 * 1024 * 1024  # 24MB to be safe (API limit is 25MB)
+
+    def _calculate_chunk_duration(self, audio: AudioSegment, target_size: int, bitrate: str = "64k") -> int:
+        """Calculate chunk duration in milliseconds based on target file size and bitrate."""
+        # Convert bitrate string to bits per second
+        bitrate_value = int(bitrate.replace('k', '')) * 1024
+        # Calculate bytes per millisecond
+        bytes_per_ms = bitrate_value / 8 / 1000
+        # Calculate duration that would result in target size
+        target_duration = target_size / bytes_per_ms
+        # Round down to nearest second and convert to ms
+        return int(target_duration / 1000) * 1000
+
+    def _split_audio(self, audio_path: str) -> list[str]:
+        """Split audio file into chunks smaller than max_file_size."""
+        audio = AudioSegment.from_file(audio_path)
+        chunks = []
+        
+        # Create temporary directory for chunks
+        temp_dir = tempfile.mkdtemp()
+        
+        # First try with 64k bitrate
+        bitrate = "64k"
+        chunk_duration = self._calculate_chunk_duration(audio, self.max_file_size, bitrate)
+        
+        # If chunk duration is too small, try with 32k bitrate
+        if chunk_duration < 60000:  # Less than 1 minute
+            bitrate = "32k"
+            chunk_duration = self._calculate_chunk_duration(audio, self.max_file_size, bitrate)
+            logger.info(f"Using lower bitrate ({bitrate}) for smaller file size")
+        
+        logger.info(f"Splitting audio into chunks of {chunk_duration/1000:.1f} seconds with {bitrate} bitrate")
+        
+        # Split audio into chunks
+        for i, start in enumerate(range(0, len(audio), chunk_duration)):
+            chunk = audio[start:start + chunk_duration]
+            chunk_path = os.path.join(temp_dir, f"chunk_{i}.mp3")
+            
+            # Export with calculated bitrate
+            chunk.export(chunk_path, format="mp3", bitrate=bitrate)
+            
+            # Verify file size
+            if os.path.getsize(chunk_path) > self.max_file_size:
+                logger.warning(f"Chunk {i} is still too large, trying with lower bitrate")
+                # If still too large, try with even lower bitrate
+                chunk.export(chunk_path, format="mp3", bitrate="32k")
+                
+                # If still too large after 32k, raise an error
+                if os.path.getsize(chunk_path) > self.max_file_size:
+                    raise ValueError(f"Unable to reduce chunk {i} to acceptable size even with 32k bitrate")
+            
+            chunks.append(chunk_path)
+            logger.info(f"Created chunk {i+1} with size {os.path.getsize(chunk_path)/1024/1024:.1f}MB")
+        
+        return chunks
 
     def transcribe_audio(self, audio_path: str, progress_listener: Optional[ProgressListener] = None) -> str:
         try:
-            with open(audio_path, "rb") as audio_file:
-                # Note: OpenAI API doesn't support progress updates
-                response = self.client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file
-                )
-            return response.text
+            # Check if file is too large
+            if os.path.getsize(audio_path) > self.max_file_size:
+                logger.info(f"File {audio_path} is too large, splitting into chunks...")
+                chunk_paths = self._split_audio(audio_path)
+                transcripts = []
+                
+                for i, chunk_path in enumerate(chunk_paths):
+                    try:
+                        with open(chunk_path, "rb") as audio_file:
+                            response = self.client.audio.transcriptions.create(
+                                model="whisper-1",
+                                file=audio_file
+                            )
+                            transcripts.append(response.text)
+                            
+                            # Update progress
+                            if progress_listener:
+                                progress_listener.on_progress(i + 1, len(chunk_paths))
+                    except Exception as e:
+                        logger.error(f"Failed to transcribe chunk {i}: {e}")
+                    finally:
+                        # Clean up chunk file
+                        try:
+                            os.remove(chunk_path)
+                        except:
+                            pass
+                
+                # Clean up temp directory
+                try:
+                    os.rmdir(os.path.dirname(chunk_paths[0]))
+                except:
+                    pass
+                
+                return " ".join(transcripts)
+            else:
+                # Original code for files under size limit
+                with open(audio_path, "rb") as audio_file:
+                    response = self.client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio_file
+                    )
+                return response.text
         except Exception as e:
             logger.error(f"OpenAI transcription failed: {e}")
             raise

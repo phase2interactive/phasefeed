@@ -43,5 +43,4 @@ daily_feed.json
 *.m4a
 *.aac
 *.ogg
-*.txt
 *.log 
