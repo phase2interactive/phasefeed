@@ -3,9 +3,34 @@ import mlx_whisper
 import logging
 from database import PodcastEpisode, get_db_session
 import config
+from tqdm import tqdm
+from progress_handler import ProgressListener, create_progress_listener_handle
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+class TranscriptionProgressListener(ProgressListener):
+    def __init__(self, episode_title: str):
+        self.episode_title = episode_title
+        self.pbar = None
+        self.last_total = None
+
+    def on_progress(self, current: float, total: float):
+        if self.pbar is None or (total != self.last_total and total > 0):
+            if self.pbar:
+                self.pbar.close()
+            self.pbar = tqdm(total=total, desc=f"Transcribing {self.episode_title}", 
+                           unit="%", leave=False)
+            self.last_total = total
+        
+        if total > 0:
+            progress = min(current, total)  # Ensure we don't exceed 100%
+            self.pbar.n = progress
+            self.pbar.refresh()
+
+    def on_finished(self):
+        if self.pbar:
+            self.pbar.close()
 
 def ensure_transcript_dir():
     """Ensure transcript directory exists."""
@@ -22,22 +47,24 @@ def transcribe_episodes():
         .all()
     )
 
-    for ep in episodes:
+    for ep in tqdm(episodes, desc="Processing episodes", unit="episode"):
         if not ep.audio_path or not os.path.exists(ep.audio_path):
             logger.error(f"Audio file not found for {ep.episode_title}")
             continue
 
         try:
-            logger.info(f"Transcribing {ep.episode_title}...")
+            logger.info(f"Starting transcription of {ep.episode_title}...")
             
             # Ensure transcript directory exists
             ensure_transcript_dir()
             
-            # Generate transcript
-            result = mlx_whisper.transcribe(
-                ep.audio_path,
-                path_or_hf_repo=config.WHISPER_MODEL
-            )
+            # Generate transcript with progress tracking
+            progress_listener = TranscriptionProgressListener(ep.episode_title)
+            with create_progress_listener_handle(progress_listener):
+                result = mlx_whisper.transcribe(
+                    ep.audio_path,
+                    path_or_hf_repo=config.WHISPER_MODEL
+                )
             
             # Format transcript with metadata
             transcript_text = f"""Title: {ep.episode_title}
