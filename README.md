@@ -16,7 +16,7 @@ A local podcast monitoring and transcription system that:
 brew install ffmpeg
 ```
 
-3. (Optional) Install and set up Ollama for summarization:
+3. Install and set up Ollama for summarization:
 ```bash
 # Install Ollama
 brew install ollama

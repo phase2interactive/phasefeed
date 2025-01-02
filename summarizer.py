@@ -7,9 +7,61 @@ import config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def generate_summary(text):
-    """Generate a summary using Ollama."""
-    prompt = f"""Please provide a concise summary of this podcast episode transcript. Focus on:
+def chunk_text(text, chunk_size=config.TRANSCRIPT_CHUNK_SIZE, overlap=config.TRANSCRIPT_CHUNK_OVERLAP):
+    """Split text into overlapping chunks of approximately chunk_size characters.
+    
+    Args:
+        text (str): The text to split
+        chunk_size (int): Target size of each chunk in characters
+        overlap (int): Number of characters to overlap between chunks
+        
+    Returns:
+        list[str]: List of text chunks
+    """
+    # Split into sentences (roughly) by splitting on periods followed by whitespace
+    sentences = [s.strip() + '.' for s in text.split('. ')]
+    chunks = []
+    current_chunk = []
+    current_size = 0
+    
+    for sentence in sentences:
+        sentence_size = len(sentence)
+        
+        if current_size + sentence_size > chunk_size and current_chunk:
+            # Store the chunk
+            chunks.append(' '.join(current_chunk))
+            # Keep last few sentences for overlap
+            overlap_text = ' '.join(current_chunk[-3:])  # Keep ~3 sentences for context
+            current_chunk = [overlap_text, sentence]
+            current_size = len(overlap_text) + sentence_size
+        else:
+            current_chunk.append(sentence)
+            current_size += sentence_size
+    
+    # Add the last chunk if there is one
+    if current_chunk:
+        chunks.append(' '.join(current_chunk))
+    
+    return chunks
+
+def generate_summary(text, is_chunk=False):
+    """Generate a summary using Ollama.
+    
+    Args:
+        text (str): Text to summarize
+        is_chunk (bool): Whether this is a chunk of a larger text
+    """
+    if is_chunk:
+        prompt = f"""Please provide a brief summary of this section of a podcast transcript. Focus on:
+1. Main points discussed
+2. Key information
+
+Transcript section:
+{text}
+
+Summary:"""
+    else:
+        prompt = f"""Please provide a concise summary of this podcast episode transcript. Focus on:
 1. Main topics discussed
 2. Key takeaways
 3. Important quotes or moments
@@ -39,6 +91,51 @@ Summary:"""
         logger.error(f"Error calling Ollama API: {e}")
         return None
 
+def combine_chunk_summaries(chunk_summaries, metadata):
+    """Combine chunk summaries into a final coherent summary."""
+    combined_text = "\n\n".join(chunk_summaries)
+    
+    prompt = f"""I have multiple summaries from different sections of a podcast episode. Please create a coherent final summary that combines these sections.
+Focus on:
+1. Main topics and themes
+2. Key takeaways
+3. Important moments or quotes
+
+Individual section summaries:
+{combined_text}
+
+Please provide a unified summary:"""
+
+    try:
+        response = requests.post(
+            config.OLLAMA_URL,
+            json={
+                "model": config.OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False
+            }
+        )
+        
+        if response.status_code == 200:
+            final_summary = response.json()["response"]
+            
+            # Format summary with metadata
+            return f"""Title: {metadata['title']}
+Podcast: {metadata['podcast']}
+Date: {metadata['date']}
+Duration: {metadata['duration']} seconds
+
+Summary:
+{final_summary}
+"""
+        else:
+            logger.error(f"Ollama API error when combining summaries: {response.status_code}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error calling Ollama API when combining summaries: {e}")
+        return None
+
 def summarize_episodes():
     """Find all transcribed but not summarized episodes and generate summaries."""
     session = get_db_session()
@@ -60,13 +157,42 @@ def summarize_episodes():
             with open(ep.transcript_path, "r", encoding="utf-8") as f:
                 transcript_text = f.read()
             
-            # Generate summary
-            summary = generate_summary(transcript_text)
-            if not summary:
-                continue
+            # Extract just the transcript part (after "Transcript:" line)
+            transcript_parts = transcript_text.split("Transcript:")
+            if len(transcript_parts) > 1:
+                transcript_text = transcript_parts[1].strip()
+            
+            # Check if transcript is long enough to need chunking
+            if len(transcript_text) > config.TRANSCRIPT_CHUNK_SIZE:
+                logger.info(f"Transcript is long ({len(transcript_text)} chars), processing in chunks...")
                 
-            # Format summary with metadata
-            summary_text = f"""Title: {ep.episode_title}
+                # Split into chunks and summarize each
+                chunks = chunk_text(transcript_text)
+                chunk_summaries = []
+                
+                for i, chunk in enumerate(chunks, 1):
+                    logger.info(f"Processing chunk {i} of {len(chunks)}...")
+                    chunk_summary = generate_summary(chunk, is_chunk=True)
+                    if chunk_summary:
+                        chunk_summaries.append(chunk_summary)
+                
+                if not chunk_summaries:
+                    logger.error("Failed to generate any chunk summaries")
+                    continue
+                
+                # Combine chunk summaries
+                metadata = {
+                    'title': ep.episode_title,
+                    'podcast': ep.podcast_title,
+                    'date': ep.pub_date,
+                    'duration': ep.duration
+                }
+                summary = combine_chunk_summaries(chunk_summaries, metadata)
+            else:
+                # For shorter transcripts, summarize directly
+                summary = generate_summary(transcript_text)
+                if summary:
+                    summary = f"""Title: {ep.episode_title}
 Podcast: {ep.podcast_title}
 Date: {ep.pub_date}
 Duration: {ep.duration} seconds
@@ -75,6 +201,9 @@ Summary:
 {summary}
 """
             
+            if not summary:
+                continue
+                
             # Save summary
             safe_filename = "".join([c for c in ep.episode_title if c.isalpha() or c.isdigit() or c in ' ._-']).rstrip()
             summary_path = os.path.join(
@@ -83,7 +212,7 @@ Summary:
             )
             
             with open(summary_path, "w", encoding="utf-8") as f:
-                f.write(summary_text)
+                f.write(summary)
             
             # Update database
             ep.summary_path = summary_path
