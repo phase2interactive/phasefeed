@@ -188,7 +188,7 @@ class TranscriptionService:
                 
                 # Format transcript with metadata
                 transcript_text = f"""Title: {ep.episode_title}
-Podcast: {ep.podcast_title}
+Podcast: {ep.show.title}
 Date: {ep.pub_date}
 Duration: {ep.duration} seconds
 
@@ -200,7 +200,7 @@ Transcript:
                 safe_filename = "".join([c for c in ep.episode_title if c.isalpha() or c.isdigit() or c in ' ._-']).rstrip()
                 transcript_path = os.path.join(
                     config.TRANSCRIPT_STORAGE_PATH,
-                    f"{ep.podcast_title}_{safe_filename}.txt"
+                    f"{ep.show.title}_{safe_filename}.txt"
                 )
                 
                 with open(transcript_path, "w", encoding="utf-8") as f:

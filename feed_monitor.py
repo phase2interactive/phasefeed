@@ -2,7 +2,7 @@ import feedparser
 import requests
 import os
 import datetime
-from database import PodcastEpisode, get_db_session
+from database import PodcastEpisode, get_db_session, Show
 import config
 import logging
 from urllib.parse import urlparse
@@ -41,6 +41,16 @@ def check_feeds():
                 logger.error(f"Error parsing feed: {feed_url} - {feed.bozo_exception}")
                 continue
 
+            # Get or create show
+            show = session.query(Show).filter_by(feed_url=feed_url).first()
+            if not show:
+                show = Show(
+                    feed_url=feed_url,
+                    title=feed.feed.title if hasattr(feed, 'feed') else ""
+                )
+                session.add(show)
+                session.commit()
+
             # Sort entries by publication date (most recent first)
             sorted_entries = sorted(
                 feed.entries,
@@ -53,7 +63,7 @@ def check_feeds():
                 # Skip if episode already exists
                 existing = (
                     session.query(PodcastEpisode)
-                    .filter_by(feed_url=feed_url, episode_title=entry.title)
+                    .filter_by(show_id=show.id, episode_title=entry.title)
                     .first()
                 )
                 if existing:
@@ -64,18 +74,18 @@ def check_feeds():
                     pub_date = datetime.datetime(*entry.published_parsed[:6])
 
                 new_episode = PodcastEpisode(
-                    feed_url=feed_url,
-                    podcast_title=feed.feed.title if hasattr(feed, 'feed') else "",
+                    show_id=show.id,
                     episode_title=entry.title,
                     pub_date=pub_date
                 )
                 session.add(new_episode)
                 logger.info(f"Added new episode: {entry.title}")
-                
+
+            session.commit()
         except Exception as e:
             logger.error(f"Error processing feed {feed_url}: {e}")
-    
-    session.commit()
+            continue
+
     session.close()
 
 def download_new_episodes():

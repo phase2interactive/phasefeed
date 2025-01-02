@@ -44,27 +44,33 @@ def chunk_text(text, chunk_size=config.TRANSCRIPT_CHUNK_SIZE, overlap=config.TRA
     
     return chunks
 
-def generate_summary(text, is_chunk=False):
+def generate_summary(text, podcast_name, episode_title, is_chunk=False):
     """Generate a summary using Ollama.
     
     Args:
         text (str): Text to summarize
+        podcast_name (str): Name of the podcast
+        episode_title (str): Title of the episode
         is_chunk (bool): Whether this is a chunk of a larger text
     """
     if is_chunk:
-        prompt = f"""Please provide a brief summary of this section of a podcast transcript. Focus on:
+        prompt = f"""Please provide a brief summary of this section of a transcript from the podcast '{podcast_name}', episode '{episode_title}'. Focus on:
 1. Main points discussed
 2. Key information
+
+Use bullet points when appropriate. Do not use markdown formatting. Be sure to include all relevant information discussed in this episode.
 
 Transcript section:
 {text}
 
 Summary:"""
     else:
-        prompt = f"""Please provide a concise summary of this podcast episode transcript. Focus on:
+        prompt = f"""Please provide a concise summary of the podcast '{podcast_name}', episode '{episode_title}'. Focus on:
 1. Main topics discussed
 2. Key takeaways
 3. Important quotes or moments
+
+Use bullet points when appropriate. Do not use markdown formatting. Be sure to include all relevant information discussed in this episode.
 
 Transcript:
 {text}
@@ -117,17 +123,7 @@ Please provide a unified summary:"""
         )
         
         if response.status_code == 200:
-            final_summary = response.json()["response"]
-            
-            # Format summary with metadata
-            return f"""Title: {metadata['title']}
-Podcast: {metadata['podcast']}
-Date: {metadata['date']}
-Duration: {metadata['duration']} seconds
-
-Summary:
-{final_summary}
-"""
+            return response.json()["response"]
         else:
             logger.error(f"Ollama API error when combining summaries: {response.status_code}")
             return None
@@ -172,7 +168,7 @@ def summarize_episodes():
                 
                 for i, chunk in enumerate(chunks, 1):
                     logger.info(f"Processing chunk {i} of {len(chunks)}...")
-                    chunk_summary = generate_summary(chunk, is_chunk=True)
+                    chunk_summary = generate_summary(chunk, ep.show.title, ep.episode_title, is_chunk=True)
                     if chunk_summary:
                         chunk_summaries.append(chunk_summary)
                 
@@ -183,23 +179,16 @@ def summarize_episodes():
                 # Combine chunk summaries
                 metadata = {
                     'title': ep.episode_title,
-                    'podcast': ep.podcast_title,
+                    'podcast': ep.show.title,
                     'date': ep.pub_date,
                     'duration': ep.duration
                 }
                 summary = combine_chunk_summaries(chunk_summaries, metadata)
             else:
                 # For shorter transcripts, summarize directly
-                summary = generate_summary(transcript_text)
+                summary = generate_summary(transcript_text, ep.show.title, ep.episode_title)
                 if summary:
-                    summary = f"""Title: {ep.episode_title}
-Podcast: {ep.podcast_title}
-Date: {ep.pub_date}
-Duration: {ep.duration} seconds
-
-Summary:
-{summary}
-"""
+                    summary = summary.strip()
             
             if not summary:
                 continue
@@ -208,7 +197,7 @@ Summary:
             safe_filename = "".join([c for c in ep.episode_title if c.isalpha() or c.isdigit() or c in ' ._-']).rstrip()
             summary_path = os.path.join(
                 config.TRANSCRIPT_STORAGE_PATH,
-                f"{ep.podcast_title}_{safe_filename}_summary.txt"
+                f"{ep.show.title}_{safe_filename}_summary.txt"
             )
             
             with open(summary_path, "w", encoding="utf-8") as f:
