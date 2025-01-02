@@ -12,6 +12,9 @@ PODCAST_FEEDS = [
     "https://feeds.megaphone.fm/profgmarkets",  # Example feed
 ]
 
+# Maximum number of episodes to pull from each feed
+MAX_EPISODES_PER_FEED = 5
+
 # MLX Whisper model configuration
 WHISPER_MODEL = "mlx-community/distil-whisper-large-v3"
 

@@ -48,8 +48,8 @@ def check_feeds():
                 reverse=True
             )
 
-            # Process only the 5 most recent episodes
-            for entry in sorted_entries[:5]:
+            # Process episodes limited by MAX_EPISODES_PER_FEED setting
+            for entry in sorted_entries[:config.MAX_EPISODES_PER_FEED]:
                 # Skip if episode already exists
                 existing = (
                     session.query(PodcastEpisode)
