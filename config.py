@@ -15,7 +15,10 @@ PODCAST_FEEDS = [
 # Maximum number of episodes to pull from each feed
 MAX_EPISODES_PER_FEED = 5
 
-# MLX Whisper model configuration
+# Transcription configuration
+TRANSCRIPTION_MODE = "openai"  # Options: "local" or "openai"
+
+# MLX Whisper model configuration (for local transcription)
 WHISPER_MODEL = "mlx-community/distil-whisper-large-v3"
 
 # Ollama configuration
@@ -23,8 +26,8 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen2.5:3b"
 
 # Transcript processing configuration
-TRANSCRIPT_CHUNK_SIZE = 4000  # Characters per chunk
-TRANSCRIPT_CHUNK_OVERLAP = 200  # Characters of overlap between chunks 
+TRANSCRIPT_CHUNK_SIZE = 50000  # Characters per chunk
+TRANSCRIPT_CHUNK_OVERLAP = 2000  # Characters of overlap between chunks 
 
 # Scheduling configuration
 CHECK_INTERVAL_MINUTES = 60  # How often to check feeds

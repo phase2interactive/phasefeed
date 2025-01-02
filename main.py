@@ -2,18 +2,33 @@ import os
 import json
 import logging
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
 from apscheduler.schedulers.background import BackgroundScheduler
 from database import init_db, cleanup_old_episodes
 from feed_monitor import check_feeds, download_new_episodes
-from transcriber import transcribe_episodes
+from transcriber import (
+    TranscriptionService,
+    LocalWhisperTranscriber,
+    OpenAIWhisperTranscriber
+)
 from summarizer import summarize_episodes
 import config
+
+# Load environment variables from .env file
+load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+def get_transcriber():
+    """Initialize and return the appropriate transcriber based on configuration."""
+    if config.TRANSCRIPTION_MODE == "openai":
+        return OpenAIWhisperTranscriber()
+    else:  # default to local
+        return LocalWhisperTranscriber(model_path=config.WHISPER_MODEL)
 
 def generate_daily_feed():
     """Generate a JSON feed of recent episodes with transcripts and summaries."""
@@ -70,7 +85,9 @@ def process_episodes():
         #download_new_episodes()
         
         # Generate transcripts
-        transcribe_episodes()
+        transcriber = get_transcriber()
+        transcription_service = TranscriptionService(transcriber)
+        transcription_service.transcribe_episodes()
         
         # Generate summaries (if Ollama is configured)
         summarize_episodes()
