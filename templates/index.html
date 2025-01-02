@@ -179,16 +179,10 @@
                         <span>{{ episode.size_formatted }}</span>
                     </div>
 
-                    {% if episode.audio_url %}
                     <audio class="audio-player" controls preload="metadata">
-                        <source src="{{ episode.audio_url }}" type="audio/mpeg">
+                        <source src="/audio/{{ episode.id }}" type="audio/mpeg">
                         Your browser does not support the audio element.
                     </audio>
-                    {% else %}
-                    <div class="audio-unavailable">
-                        Audio file not available
-                    </div>
-                    {% endif %}
 
                     {% if episode.summary %}
                     <div class="summary">
