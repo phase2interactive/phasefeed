@@ -9,6 +9,34 @@ from abc import ABC, abstractmethod
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Common prompt template for summarization
+SUMMARY_PROMPT_TEMPLATE = """
+Focus on:
+1. Main points discussed
+2. Key information
+3. Important quotes or moments
+
+Follow these rules:
+- Use bullet points when appropriate
+- Be sure to include ALL relevant information discussed
+- Do not leave out any important information
+- Use markdown formatting with headers and subheaders and lists
+- Follow markdownbest practices for formatting the content.
+            
+Follow this format:
+## Main Topic
+Brief summary of the main topic.
+- Key points
+- Key quotes
+- Key moments
+- Key takeaways
+
+{additional_instructions}
+
+{content_type}: {content}
+
+Summary:"""
+
 class BaseSummarizer(ABC):
     @abstractmethod
     def generate_summary(self, text: str, podcast_name: str, episode_title: str, is_chunk: bool = False) -> str:
@@ -26,31 +54,19 @@ class LocalOllamaSummarizer(BaseSummarizer):
 
     def generate_summary(self, text: str, podcast_name: str, episode_title: str, is_chunk: bool = False) -> str:
         if is_chunk:
-            prompt = f"""Please provide a brief summary of this section of a transcript from the podcast '{podcast_name}', episode '{episode_title}'. Focus on:
-            1. Main points discussed
-            2. Key information
-            3. Important quotes or moments
-
-            Use bullet points when appropriate. Do not use markdown formatting. 
-            Be sure to include ALL relevant information discussed in this episode. Do not leave out any important information.
-
-            Transcript section:
-            {text}
-
-            Summary (do not include any markdown formatting):"""
+            additional_instructions = """
+            Keep in mind that the summary from this section will be combined with summaries from other sections of the podcast. 
+            That aggregate conent will be used to generate a final summary."""
+            content_type = f"Transcript section from the podcast '{podcast_name}', episode '{episode_title}'"
         else:
-            prompt = f"""Please provide a concise summary of the podcast '{podcast_name}', episode '{episode_title}'. Focus on:
-            1. Main topics discussed
-            2. Key takeaways
-            3. Important quotes or moments
+            additional_instructions = "Provide a concise summary."
+            content_type = f"Full transcript from the podcast '{podcast_name}', episode '{episode_title}'"
 
-            Use bullet points when appropriate. Do not use markdown formatting. 
-            Be sure to include ALL relevant information discussed in this episode. Do not leave out any important information.
-
-            Transcript:
-            {text}
-
-            Summary (do not include any markdown formatting):"""
+        prompt = SUMMARY_PROMPT_TEMPLATE.format(
+            additional_instructions=additional_instructions,
+            content_type=content_type,
+            content=text
+        )
 
         try:
             response = self.client.generate(
@@ -66,19 +82,11 @@ class LocalOllamaSummarizer(BaseSummarizer):
     def combine_chunk_summaries(self, chunk_summaries: list[str], metadata: dict) -> str:
         combined_text = "\n\n".join(chunk_summaries)
         
-        prompt = f"""I have multiple summaries from different sections of a podcast episode. Please create a coherent final summary that combines these sections.
-        Focus on:
-        1. Main topics and themes
-        2. Key takeaways
-        3. Important moments or quotes
-
-        Use bullet points when appropriate. Do not use markdown formatting. 
-        Be sure to include ALL relevant information discussed in these episodes. Do not leave out any important information.
-
-        Individual section summaries:
-        {combined_text}
-
-        Please provide a unified summary (do not include any markdown formatting):"""
+        prompt = SUMMARY_PROMPT_TEMPLATE.format(
+            additional_instructions="Create a coherent final summary that combines these sections.",
+            content_type="Individual section summaries from a podcast episode",
+            content=combined_text
+        )
 
         try:
             response = self.client.generate(
@@ -98,29 +106,23 @@ class OpenAISummarizer(BaseSummarizer):
     def generate_summary(self, text: str, podcast_name: str, episode_title: str, is_chunk: bool = False) -> str:
         if is_chunk:
             system_prompt = "You are a podcast summarization assistant. Provide clear, concise summaries focusing on main points, key information, and important quotes."
-            user_prompt = f"""Summarize this section of a transcript from the podcast '{podcast_name}', episode '{episode_title}'. Focus on:
-            1. Main points discussed
-            2. Key information
-            3. Important quotes or moments
-
-            Transcript section:
-            {text}"""
+            content_type = f"section of a transcript from the podcast '{podcast_name}', episode '{episode_title}'"
         else:
             system_prompt = "You are a podcast summarization assistant. Provide comprehensive episode summaries focusing on main topics, key takeaways, and important moments."
-            user_prompt = f"""Summarize the podcast '{podcast_name}', episode '{episode_title}'. Focus on:
-            1. Main topics discussed
-            2. Key takeaways
-            3. Important quotes or moments
+            content_type = f"full transcript from the podcast '{podcast_name}', episode '{episode_title}'"
 
-            Transcript:
-            {text}"""
+        prompt = SUMMARY_PROMPT_TEMPLATE.format(
+            additional_instructions="",
+            content_type=content_type,
+            content=text
+        )
 
         try:
             response = self.client.chat.completions.create(
                 model=config.OPENAI_SUMMARY_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "user", "content": prompt}
                 ]
             )
             return response.choices[0].message.content
@@ -132,20 +134,18 @@ class OpenAISummarizer(BaseSummarizer):
         combined_text = "\n\n".join(chunk_summaries)
         
         system_prompt = "You are a podcast summarization assistant. Create unified, coherent summaries from multiple section summaries."
-        user_prompt = f"""Create a unified summary from these section summaries of a podcast episode. Focus on:
-        1. Main topics and themes
-        2. Key takeaways
-        3. Important moments or quotes
-
-        Individual section summaries:
-        {combined_text}"""
+        prompt = SUMMARY_PROMPT_TEMPLATE.format(
+            additional_instructions="Create a unified summary that combines these sections.",
+            content_type="section summaries from a podcast episode",
+            content=combined_text
+        )
 
         try:
             response = self.client.chat.completions.create(
                 model=config.OPENAI_SUMMARY_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "user", "content": prompt}
                 ]
             )
             return response.choices[0].message.content

@@ -14,3 +14,4 @@ python-dotenv
 pydub
 openlit
 ollama
+markdown2

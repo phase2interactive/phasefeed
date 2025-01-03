@@ -186,7 +186,7 @@
 
                     {% if episode.summary %}
                     <div class="summary">
-                        {{ episode.summary }}
+                        {{ episode.summary | safe }}
                     </div>
                     {% endif %}
                 </article>
