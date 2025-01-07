@@ -5,31 +5,62 @@ from database import PodcastEpisode, get_db_session, update_episode_content
 import config
 import openai
 from abc import ABC, abstractmethod
+import tiktoken
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Common prompt template for summarization
 SUMMARY_PROMPT_TEMPLATE = """
-Focus on:
-1. Main points discussed
-2. Key information
-3. Important quotes or moments
+Podcast Transcript Summary Prompt
 
-Follow these rules:
-- Use bullet points when appropriate
-- Be sure to include ALL relevant information discussed
-- Do not leave out any important information
-- Use markdown formatting with headers and subheaders and lists
-- Follow markdownbest practices for formatting the content.
-            
-Follow this format:
-## Main Topic
-Brief summary of the main topic.
-- Key points
-- Key quotes
-- Key moments
-- Key takeaways
+Your task is to summarize podcast transcripts. Focus on the following:
+1. Main Points Discussed: Highlight the central topics and discussions.
+2. Key Information: Extract the most important details and insights.
+3. Important Quotes or Moments: Identify significant quotes, anecdotes, or pivotal moments.
+
+Formatting Rules
+- Use markdown formatting with clear headers, subheaders, and bullet points.
+- Follow markdown best practices for readability, consistency, and web presentation.
+- Include all relevant information without omitting any important details.
+- Organize content under appropriate subheadings for easy navigation.
+- Use bullet points for clarity and brevity where necessary.
+
+Recommended Format
+## [Subheading]
+Provide a brief summary of the topic or section discussed.
+
+- Key Points:
+    - List the main points discussed in this section.
+    - Each point should be concise yet comprehensive.
+
+- Key Quotes:
+    - Include quotes that highlight the speaker's perspective or critical moments.
+
+- Key Moments:
+    - Describe important events, turning points, or highlights of the discussion.
+
+- Key Takeaways:
+    - Summarize the core insights or lessons for the audience.
+
+Example Format
+## Introduction
+Brief overview of the episode, introducing the main topic and guests.
+
+- Key Points:
+    - The host introduces the guest and their background.
+    - Brief mention of the episode's central theme.
+
+- Key Quotes:
+    - “This episode will change the way you think about [topic].”
+
+- Key Moments:
+    - A personal anecdote shared by the guest sets the tone.
+
+- Key Takeaways:
+    - The episode promises actionable insights into [subject].
+
 
 {additional_instructions}
 
@@ -162,41 +193,40 @@ def get_summarizer() -> BaseSummarizer:
     else:
         raise ValueError(f"Invalid summarization mode: {config.SUMMARIZATION_MODE}")
 
-def chunk_text(text, chunk_size=config.TRANSCRIPT_CHUNK_SIZE, overlap=config.TRANSCRIPT_CHUNK_OVERLAP):
-    """Split text into overlapping chunks of approximately chunk_size characters.
+def get_token_count(text: str, model: str = "gpt-4") -> int:
+    """Count the number of tokens in a text string."""
+    try:
+        encoding = tiktoken.encoding_for_model(model)
+        return len(encoding.encode(text))
+    except Exception as e:
+        logger.warning(f"Error counting tokens, falling back to approximate count: {e}")
+        return len(text.split()) * 1.3  # Rough approximation
+
+def chunk_text(text: str, chunk_tokens=config.TRANSCRIPT_CHUNK_TOKENS, overlap_tokens=config.TRANSCRIPT_CHUNK_OVERLAP_TOKENS) -> list[str]:
+    """Split text into overlapping chunks using Langchain's RecursiveCharacterTextSplitter.
     
     Args:
         text (str): The text to split
-        chunk_size (int): Target size of each chunk in characters
-        overlap (int): Number of characters to overlap between chunks
+        chunk_tokens (int): Target size of each chunk in tokens
+        overlap_tokens (int): Number of tokens to overlap between chunks
         
     Returns:
         list[str]: List of text chunks
     """
-    # Split into sentences (roughly) by splitting on periods followed by whitespace
-    sentences = [s.strip() + '.' for s in text.split('. ')]
-    chunks = []
-    current_chunk = []
-    current_size = 0
+    # Get the encoding for the model we're using
+    model = config.OPENAI_SUMMARY_MODEL if config.SUMMARIZATION_MODE == "openai" else "gpt-4"
     
-    for sentence in sentences:
-        sentence_size = len(sentence)
-        
-        if current_size + sentence_size > chunk_size and current_chunk:
-            # Store the chunk
-            chunks.append(' '.join(current_chunk))
-            # Keep last few sentences for overlap
-            overlap_text = ' '.join(current_chunk[-3:])  # Keep ~3 sentences for context
-            current_chunk = [overlap_text, sentence]
-            current_size = len(overlap_text) + sentence_size
-        else:
-            current_chunk.append(sentence)
-            current_size += sentence_size
+    # Create text splitter with tiktoken
+    text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+        model_name=model,
+        chunk_size=chunk_tokens,
+        chunk_overlap=overlap_tokens,
+        separators=["\n\n", "\n", ". ", " ", ""],  # Prioritize splitting at paragraph breaks, then sentences
+        is_separator_regex=False
+    )
     
-    # Add the last chunk if there is one
-    if current_chunk:
-        chunks.append(' '.join(current_chunk))
-    
+    # Split the text
+    chunks = text_splitter.split_text(text)
     return chunks
 
 def summarize_episodes():
@@ -227,9 +257,10 @@ def summarize_episodes():
             if len(transcript_parts) > 1:
                 transcript_text = transcript_parts[1].strip()
             
-            # Check if transcript is long enough to need chunking
-            if len(transcript_text) > config.TRANSCRIPT_CHUNK_SIZE:
-                logger.info(f"Transcript is long ({len(transcript_text)} chars), processing in chunks...")
+            # Check if transcript needs chunking based on token count
+            token_count = get_token_count(transcript_text)
+            if token_count > config.TRANSCRIPT_CHUNK_TOKENS:
+                logger.info(f"Transcript is long ({token_count} tokens), processing in chunks...")
                 
                 # Split into chunks and summarize each
                 chunks = chunk_text(transcript_text)

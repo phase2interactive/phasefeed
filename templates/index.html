@@ -101,7 +101,97 @@
             margin-top: 1rem;
             padding-top: 1rem;
             border-top: 1px solid var(--border-color);
-            white-space: pre-line;
+        }
+
+        /* Remove pre-line as it affects list formatting */
+        .summary p {
+            margin: 1.25rem 0;
+            line-height: 1.6;
+        }
+
+        /* Improved heading hierarchy */
+        .summary h1 {
+            font-size: 1.75rem;
+            margin: 2rem 0 1rem;
+            color: var(--text-color);
+        }
+
+        .summary h2 {
+            font-size: 1.5rem;
+            margin: 1.75rem 0 1rem;
+            color: var(--text-color);
+        }
+
+        .summary h3 {
+            font-size: 1.25rem;
+            margin: 1.5rem 0 0.75rem;
+            color: var(--text-color);
+        }
+
+        /* Enhanced list styling */
+        .summary ul, .summary ol {
+            margin: 1rem 0;
+            padding-left: 2.5rem;
+        }
+
+        .summary li {
+            margin: 0.75rem 0;
+            line-height: 1.5;
+        }
+
+        /* Nested list styling */
+        .summary li > ul,
+        .summary li > ol {
+            margin: 0.5rem 0;
+        }
+
+        /* Blockquote styling */
+        .summary blockquote {
+            border-left: 4px solid var(--primary-color);
+            padding: 0.5rem 0 0.5rem 1.5rem;
+            margin: 1.5rem 0;
+            color: #4b5563;
+            font-style: italic;
+        }
+
+        /* Code styling */
+        .summary code {
+            background: var(--bg-color);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.875em;
+            color: var(--primary-color);
+        }
+
+        .summary pre {
+            background: var(--bg-color);
+            padding: 1.25rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+        }
+
+        /* Horizontal rule styling */
+        .summary hr {
+            margin: 2rem 0;
+            border: 0;
+            height: 1px;
+            background: var(--border-color);
+        }
+
+        /* Emphasis and strong */
+        .summary em {
+            font-style: italic;
+        }
+
+        .summary strong {
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        /* Bold within lists */
+        .summary li strong {
+            color: var(--text-color);
         }
 
         .audio-player {

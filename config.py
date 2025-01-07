@@ -30,8 +30,8 @@ OLLAMA_URL = "http://localhost:11434"
 OLLAMA_MODEL = "qwen2.5:3b"
 
 # Transcript processing configuration
-TRANSCRIPT_CHUNK_SIZE = 50000  # Characters per chunk
-TRANSCRIPT_CHUNK_OVERLAP = 2000  # Characters of overlap between chunks 
+TRANSCRIPT_CHUNK_TOKENS = 50000  # Tokens per chunk (suitable for most LLM context windows)
+TRANSCRIPT_CHUNK_OVERLAP_TOKENS = 500  # Tokens of overlap between chunks 
 
 # Scheduling configuration
 CHECK_INTERVAL_MINUTES = 60  # How often to check feeds
