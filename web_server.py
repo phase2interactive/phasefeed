@@ -15,7 +15,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="FeedPhase")
+app = FastAPI(title="PhaseFeed")
 
 @app.on_event("startup")
 async def startup_event():
