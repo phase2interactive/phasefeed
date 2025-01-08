@@ -1,4 +1,4 @@
-# Podcast Buddy
+# FeedPhase
 
 A local podcast monitoring and transcription system that:
 - Monitors RSS feeds for new podcast episodes
