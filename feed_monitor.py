@@ -7,6 +7,8 @@ import config
 import logging
 from urllib.parse import urlparse
 import mimetypes
+from progress_handler import DownloadProgressBar
+import urllib.request
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -99,7 +101,7 @@ def download_new_episodes():
 
     for ep in episodes_to_download:
         try:
-            feed = feedparser.parse(ep.feed_url)
+            feed = feedparser.parse(ep.show.feed_url)
             for entry in feed.entries:
                 if entry.title == ep.episode_title:
                     if hasattr(entry, "enclosures") and len(entry.enclosures) > 0:
@@ -110,22 +112,20 @@ def download_new_episodes():
                         safe_file_name = sanitize_filename(file_name)
                         
                         # Create podcast directory
-                        podcast_dir = os.path.join(config.AUDIO_STORAGE_PATH, sanitize_filename(ep.podcast_title))
+                        podcast_dir = os.path.join(config.AUDIO_STORAGE_PATH, sanitize_filename(ep.show.title))
                         os.makedirs(podcast_dir, exist_ok=True)
                         
                         local_path = os.path.join(podcast_dir, safe_file_name)
                         
-                        logger.info(f"Downloading {audio_url} to {local_path}")
+                        logger.info(f"Starting download of {ep.episode_title}...")
                         
-                        # Stream download to handle large files
-                        response = requests.get(audio_url, stream=True)
-                        file_size = 0
+                        # Download with progress bar
+                        progress_bar = DownloadProgressBar(ep.episode_title)
+                        urllib.request.urlretrieve(audio_url, local_path, progress_bar)
+                        progress_bar.close()
                         
-                        with open(local_path, "wb") as f:
-                            for chunk in response.iter_content(chunk_size=8192):
-                                if chunk:
-                                    file_size += len(chunk)
-                                    f.write(chunk)
+                        # Get file size
+                        file_size = os.path.getsize(local_path)
                         
                         # Update episode record
                         ep.audio_path = local_path

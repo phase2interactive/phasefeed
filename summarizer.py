@@ -193,10 +193,38 @@ def get_summarizer() -> BaseSummarizer:
     else:
         raise ValueError(f"Invalid summarization mode: {config.SUMMARIZATION_MODE}")
 
-def get_token_count(text: str, model: str = "gpt-4") -> int:
+def get_encoding(model: str):
+    """Get the appropriate tiktoken encoding for a model, falling back to cl100k_base if not found.
+    
+    Args:
+        model (str): The model name to get encoding for
+        
+    Returns:
+        tiktoken.Encoding: The encoding to use
+    """
+    try:
+        return tiktoken.encoding_for_model(model)
+    except KeyError:
+        logger.warning(f"Model {model} not explicitly supported by this version of tiktoken. Using cl100k_base encoding.")
+        return tiktoken.get_encoding("cl100k_base")
+
+def get_summarizer_model() -> str:
+    """Get the appropriate model name based on the summarization mode.
+    
+    Returns:
+        str: The model name to use for summarization
+    """
+    if config.SUMMARIZATION_MODE == "local":
+        return config.OLLAMA_MODEL
+    elif config.SUMMARIZATION_MODE == "openai":
+        return config.OPENAI_SUMMARY_MODEL
+    else:
+        raise ValueError(f"Invalid summarization mode: {config.SUMMARIZATION_MODE}")
+
+def get_token_count(text: str, model: str) -> int:
     """Count the number of tokens in a text string."""
     try:
-        encoding = tiktoken.encoding_for_model(model)
+        encoding = get_encoding(model)
         return len(encoding.encode(text))
     except Exception as e:
         logger.warning(f"Error counting tokens, falling back to approximate count: {e}")
@@ -213,12 +241,16 @@ def chunk_text(text: str, chunk_tokens=config.TRANSCRIPT_CHUNK_TOKENS, overlap_t
     Returns:
         list[str]: List of text chunks
     """
-    # Get the encoding for the model we're using
-    model = config.OPENAI_SUMMARY_MODEL if config.SUMMARIZATION_MODE == "openai" else "gpt-4"
+    # Get the model using our helper function
+    model = get_summarizer_model()
+    
+    # Get the encoding for the model
+    encoding = get_encoding(model)
+    encoding_name = encoding.name
     
     # Create text splitter with tiktoken
     text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-        model_name=model,
+        encoding_name=encoding_name,
         chunk_size=chunk_tokens,
         chunk_overlap=overlap_tokens,
         separators=["\n\n", "\n", ". ", " ", ""],  # Prioritize splitting at paragraph breaks, then sentences
@@ -258,7 +290,7 @@ def summarize_episodes():
                 transcript_text = transcript_parts[1].strip()
             
             # Check if transcript needs chunking based on token count
-            token_count = get_token_count(transcript_text)
+            token_count = get_token_count(transcript_text, get_summarizer_model())
             if token_count > config.TRANSCRIPT_CHUNK_TOKENS:
                 logger.info(f"Transcript is long ({token_count} tokens), processing in chunks...")
                 

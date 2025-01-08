@@ -54,7 +54,7 @@ def generate_daily_feed():
     feed_entries = []
     for ep in recent_episodes:
         entry = {
-            "podcast_title": ep.podcast_title,
+            "podcast_title": ep.show.title,
             "episode_title": ep.episode_title,
             "publication_date": ep.pub_date.isoformat() if ep.pub_date else None,
             "duration_seconds": ep.duration,
@@ -87,10 +87,10 @@ def process_episodes():
         logger.info("Starting episode processing...")
         
         # Check feeds for new episodes
-        #check_feeds()
+        check_feeds()
         
         # Download new episodes
-        #download_new_episodes()
+        download_new_episodes()
         
         # Generate transcripts
         transcriber = get_transcriber()

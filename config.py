@@ -9,7 +9,8 @@ DB_PATH = os.path.join(os.getcwd(), "podcast_app.db")
 
 # Example podcast feeds (add your own)
 PODCAST_FEEDS = [
-    "https://feeds.megaphone.fm/profgmarkets",  # Example feed
+    "https://anchor.fm/s/f7cac464/podcast/rss", # AI Daily Brief
+    "https://lexfridman.com/feed/podcast/" # Lex Fridman Podcast
 ]
 
 # Maximum number of episodes to pull from each feed

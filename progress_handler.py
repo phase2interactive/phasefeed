@@ -58,11 +58,34 @@ def register_thread_local_progress_listener(progress_listener: ProgressListener)
     init_progress_hook()
     listeners = _get_thread_local_listeners()
     listeners.append(progress_listener)
-
+    
 def unregister_thread_local_progress_listener(progress_listener: ProgressListener):
     listeners = _get_thread_local_listeners()
     if progress_listener in listeners:
         listeners.remove(progress_listener)
 
 def create_progress_listener_handle(progress_listener: ProgressListener):
-    return ProgressListenerHandle(progress_listener) 
+    return ProgressListenerHandle(progress_listener)
+
+class DownloadProgressBar:
+    def __init__(self, episode_title):
+        self.pbar = None
+        self.episode_title = episode_title
+    
+    def __call__(self, block_num, block_size, total_size):
+        if not self.pbar:
+            self.pbar = tqdm.tqdm(
+                total=total_size,
+                desc=f"Downloading {self.episode_title}",
+                unit='iB',
+                unit_scale=True,
+                unit_divisor=1024,
+            )
+        
+        downloaded = block_num * block_size
+        if downloaded <= total_size:
+            self.pbar.update(block_size)
+    
+    def close(self):
+        if self.pbar:
+            self.pbar.close() 

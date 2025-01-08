@@ -12,6 +12,7 @@
             --text-color: #1e293b;
             --border-color: #e2e8f0;
             --hover-bg: #f1f5f9;
+            --nav-width: 300px;
         }
 
         * {
@@ -25,6 +26,124 @@
             line-height: 1.5;
             color: var(--text-color);
             background: var(--bg-color);
+            display: flex;
+        }
+
+        /* Navigation Panel */
+        .nav-panel {
+            width: var(--nav-width);
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            background: white;
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+            padding: 2rem 1rem;
+        }
+
+        .nav-panel h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1.5rem;
+            padding: 0 1rem;
+            color: var(--text-color);
+        }
+
+        .podcast-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .podcast-header {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .podcast-header:hover {
+            background: var(--hover-bg);
+        }
+
+        .podcast-header h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-right: auto;
+        }
+
+        .podcast-header .toggle-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease;
+        }
+
+        .podcast-header .toggle-icon::before {
+            content: "▼";
+            font-size: 0.75rem;
+        }
+
+        .podcast-group.collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+
+        .podcast-group.collapsed .episode-list {
+            display: none;
+        }
+
+        .episode-list {
+            list-style: none;
+            margin-top: 0.5rem;
+            padding-left: 1rem;
+        }
+
+        .episode-list li {
+            margin-bottom: 0.5rem;
+        }
+
+        .episode-list a {
+            display: block;
+            padding: 0.75rem 1rem;
+            color: var(--text-color);
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-size: 0.9375rem;
+            border-left: 3px solid transparent;
+        }
+
+        .episode-list a:hover {
+            background: var(--hover-bg);
+            color: var(--primary-color);
+            border-left-color: var(--primary-color);
+        }
+
+        .episode-list a.active {
+            background: var(--primary-color);
+            color: white;
+            border-left-color: white;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+            transform: translateX(4px);
+        }
+
+        .episode-list a.active .episode-meta {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .episode-meta {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: var(--nav-width);
+            flex: 1;
         }
 
         .container {
@@ -246,48 +365,113 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Podcast Buddy</h1>
-            <p class="last-updated">Last updated: {{ last_updated }}</p>
-        </header>
-
-        <main class="episodes">
-            {% if feed_data.episodes %}
-                {% for episode in feed_data.episodes %}
-                <article class="episode-card">
-                    <div class="episode-header">
-                        <div>
-                            <h2 class="podcast-title">{{ episode.podcast_title }}</h2>
-                            <h3 class="episode-title">{{ episode.episode_title }}</h3>
-                        </div>
-                    </div>
-                    
-                    <div class="meta">
-                        <span>{{ episode.formatted_date }}</span>
-                        <span>{{ episode.duration_formatted }}</span>
-                        <span>{{ episode.size_formatted }}</span>
-                    </div>
-
-                    <audio class="audio-player" controls preload="metadata">
-                        <source src="/audio/{{ episode.id }}" type="audio/mpeg">
-                        Your browser does not support the audio element.
-                    </audio>
-
-                    {% if episode.summary %}
-                    <div class="summary">
-                        {{ episode.summary | safe }}
-                    </div>
-                    {% endif %}
-                </article>
-                {% endfor %}
-            {% else %}
-                <div class="empty-state">
-                    <h2>No episodes available</h2>
-                    <p>Check back later for new episodes</p>
-                </div>
+    <nav class="nav-panel">
+        <h2>Episodes</h2>
+        {% set podcasts = {} %}
+        {% for episode in feed_data.episodes %}
+            {% if episode.podcast_title not in podcasts %}
+                {% set _ = podcasts.update({episode.podcast_title: []}) %}
             {% endif %}
-        </main>
+            {% set _ = podcasts[episode.podcast_title].append(episode) %}
+        {% endfor %}
+        
+        {% set first_podcast = true %}
+        {% for podcast_title, episodes in podcasts.items() %}
+        <div class="podcast-group {% if not first_podcast %}collapsed{% endif %}">
+            <div class="podcast-header">
+                <h3>{{ podcast_title }}</h3>
+                <div class="toggle-icon"></div>
+            </div>
+            <ul class="episode-list">
+                {% for episode in episodes %}
+                <li>
+                    <a href="#episode-{{ episode.id }}" {% if first_podcast and loop.first %}class="active"{% endif %}>
+                        {{ episode.episode_title }}
+                        <div class="episode-meta">
+                            {{ episode.formatted_date }}
+                        </div>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% if first_podcast %}
+            {% set first_podcast = false %}
+        {% endif %}
+        {% endfor %}
+    </nav>
+
+    <div class="main-content">
+        <div class="container">
+            <header>
+                <h1>Podcast Buddy</h1>
+                <p class="last-updated">Last updated: {{ last_updated }}</p>
+            </header>
+
+            <main class="episodes">
+                {% if feed_data.episodes %}
+                    {% for episode in feed_data.episodes %}
+                    <article class="episode-card" id="episode-{{ episode.id }}">
+                        <div class="episode-header">
+                            <div>
+                                <h2 class="podcast-title">{{ episode.podcast_title }}</h2>
+                                <h3 class="episode-title">{{ episode.episode_title }}</h3>
+                            </div>
+                        </div>
+                        
+                        <div class="meta">
+                            <span>{{ episode.formatted_date }}</span>
+                            <span>{{ episode.duration_formatted }}</span>
+                            <span>{{ episode.size_formatted }}</span>
+                        </div>
+
+                        <audio class="audio-player" controls preload="metadata">
+                            <source src="/audio/{{ episode.id }}" type="audio/mpeg">
+                            Your browser does not support the audio element.
+                        </audio>
+
+                        {% if episode.summary %}
+                        <div class="summary">
+                            {{ episode.summary | safe }}
+                        </div>
+                        {% endif %}
+                    </article>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <h2>No episodes available</h2>
+                        <p>Check back later for new episodes</p>
+                    </div>
+                {% endif %}
+            </main>
+        </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Toggle podcast groups
+            document.querySelectorAll('.podcast-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    const group = this.closest('.podcast-group');
+                    group.classList.toggle('collapsed');
+                });
+            });
+
+            // Smooth scroll to section when clicking nav links
+            document.querySelectorAll('.episode-list a').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const targetId = this.getAttribute('href');
+                    document.querySelector(targetId).scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                    
+                    // Update active state immediately on click
+                    document.querySelectorAll('.episode-list a').forEach(l => l.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+        });
+    </script>
 </body>
 </html> 
