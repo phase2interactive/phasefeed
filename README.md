@@ -3,20 +3,20 @@
 A local podcast monitoring and transcription system that:
 - Monitors RSS feeds for new podcast episodes
 - Downloads new episodes automatically
-- Transcribes audio using mlx-whisper
-- (Optional) Summarizes content using local LLMs
+- Transcribes audio using either OpenAI Whisper API or local mlx-whisper
+- Summarizes content using either OpenAI GPT-4 or local LLMs via Ollama
 - Stores metadata in SQLite
 - Generates daily feed summaries
 
 ## Installation
 
 1. Ensure you have Python 3.x installed
-2. Install ffmpeg (required for mlx-whisper):
+2. Install ffmpeg (required for audio processing):
 ```bash
 brew install ffmpeg
 ```
 
-3. Install and set up Ollama for summarization:
+3. Install and set up Ollama (required only for local summarization):
 ```bash
 # Install Ollama
 brew install ollama
@@ -25,10 +25,10 @@ brew install ollama
 ollama serve
 
 # In a new terminal, pull the model
-ollama pull llama3.2
+ollama pull qwen2.5:3b
 
 # Verify the model is working
-ollama run llama3.2 "Hello, how are you?"
+ollama run qwen2.5:3b "Hello, how are you?"
 ```
 
 4. Set up Python environment:
@@ -38,10 +38,46 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+5. Configure environment variables (if using OpenAI):
+```bash
+cp .env.example .env
+# Edit .env and add your OpenAI API key if using OpenAI services
+```
+
+## Configuration
+
+The application can be configured through `config.py`. Key settings include:
+
+### Storage Configuration
+- `AUDIO_STORAGE_PATH`: Where to store downloaded podcasts (default: `~/Podcasts`)
+- `TRANSCRIPT_STORAGE_PATH`: Where to store transcripts (default: `~/Podcasts/Transcripts`)
+
+### Feed Configuration
+- `PODCAST_FEEDS`: List of RSS feed URLs to monitor
+- `MAX_EPISODES_PER_FEED`: Maximum number of episodes to pull from each feed (default: 5)
+
+### Transcription Configuration
+- `TRANSCRIPTION_MODE`: Choose between "local" or "openai"
+  - "local": Uses mlx-whisper locally (free, no API key needed)
+  - "openai": Uses OpenAI's Whisper API (requires API key)
+- `WHISPER_MODEL`: Model to use for local transcription (default: "mlx-community/distil-whisper-large-v3")
+
+### Summarization Configuration
+- `SUMMARIZATION_MODE`: Choose between "local" or "openai"
+  - "local": Uses Ollama locally (free, no API key needed)
+  - "openai": Uses OpenAI's GPT-4 (requires API key)
+- `OPENAI_SUMMARY_MODEL`: Model to use for OpenAI summarization
+- `OLLAMA_MODEL`: Model to use for local summarization (default: "qwen2.5:3b")
+- `OLLAMA_URL`: URL for Ollama server (default: "http://localhost:11434")
+
+### Processing Configuration
+- `CHECK_INTERVAL_MINUTES`: How often to check feeds (default: 60)
+- `RETAIN_DAYS`: How many days of history to keep (default: 30)
+
 ## Usage
 
-1. Configure your podcast feeds in `config.py`
-2. Ensure Ollama is running if you want summaries:
+1. Configure your settings in `config.py`
+2. If using local summarization, ensure Ollama is running:
 ```bash
 # Start Ollama in a separate terminal if not already running
 ollama serve
@@ -54,8 +90,8 @@ python main.py
 The app will:
 - Check configured RSS feeds
 - Download new episodes
-- Generate transcripts
-- Create summaries (if configured)
+- Generate transcripts (using chosen transcription method)
+- Create summaries (using chosen summarization method)
 - Generate a daily feed JSON
 
 Audio files are stored in `~/Podcasts/` by default
@@ -63,7 +99,7 @@ Transcripts are stored in `~/Podcasts/Transcripts/`
 
 ## Observability with OpenLIT (optional)
 
-This project uses OpenLIT to track observability metrics. To enable, set the `OTEL_EXPORTER_OTLP_ENDPOINT` your .env file or set the environment variable in your shell.
+This project uses OpenLIT to track observability metrics. To enable, set the `OTEL_EXPORTER_OTLP_ENDPOINT` in your .env file or set the environment variable in your shell.
 
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
