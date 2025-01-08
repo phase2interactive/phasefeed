@@ -82,20 +82,30 @@ The application can be configured through `config.py`. Key settings include:
 # Start Ollama in a separate terminal if not already running
 ollama serve
 ```
-3. Run the application:
+3. Run the services:
+
+### Background Processing Service
+To run the background service that monitors feeds and processes episodes:
 ```bash
 python main.py
 ```
 
-The app will:
+The background service will:
 - Check configured RSS feeds
 - Download new episodes
 - Generate transcripts (using chosen transcription method)
 - Create summaries (using chosen summarization method)
-- Generate a daily feed JSON
+- Save all metadata to a local SQLite database
 
 Audio files are stored in `~/Podcasts/` by default
 Transcripts are stored in `~/Podcasts/Transcripts/` 
+
+### Web Server
+To access the content through a web interface:
+```bash
+python web_server.py
+```
+Then open your browser to `http://localhost:8000`
 
 ## Observability with OpenLIT (optional)
 
