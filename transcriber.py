@@ -43,9 +43,21 @@ class LocalWhisperTranscriber(BaseTranscriber):
         with create_progress_listener_handle(progress_listener) if progress_listener else nullcontext():
             result = mlx_whisper.transcribe(
                 audio_path,
-                path_or_hf_repo=self.model_path
+                path_or_hf_repo=self.model_path,
+                word_timestamps=True  # Enable word-level timestamps
             )
-        return result["text"]
+        
+        # Format transcript with timestamps
+        segments = result.get("segments", [])
+        formatted_transcript = []
+        
+        for segment in segments:
+            start_time = int(segment["start"])
+            text = segment["text"].strip()
+            timestamp = f"[{start_time//60:02d}:{start_time%60:02d}]"
+            formatted_transcript.append(f"{timestamp} {text}")
+        
+        return "\n".join(formatted_transcript)
 
 class OpenAIWhisperTranscriber(BaseTranscriber):
     def __init__(self):
@@ -119,9 +131,17 @@ class OpenAIWhisperTranscriber(BaseTranscriber):
                         with open(chunk_path, "rb") as audio_file:
                             response = self.client.audio.transcriptions.create(
                                 model="whisper-1",
-                                file=audio_file
+                                file=audio_file,
+                                response_format="verbose_json"  # Get detailed response with timestamps
                             )
-                            transcripts.append(response.text)
+                            
+                            # Format transcript with timestamps
+                            segments = response.segments
+                            for segment in segments:
+                                start_time = int(float(segment.start))
+                                text = segment.text.strip()
+                                timestamp = f"[{start_time//60:02d}:{start_time%60:02d}]"
+                                transcripts.append(f"{timestamp} {text}")
                             
                             # Update progress
                             if progress_listener:
@@ -141,15 +161,26 @@ class OpenAIWhisperTranscriber(BaseTranscriber):
                 except:
                     pass
                 
-                return " ".join(transcripts)
+                return "\n".join(transcripts)
             else:
                 # Original code for files under size limit
                 with open(audio_path, "rb") as audio_file:
                     response = self.client.audio.transcriptions.create(
                         model="whisper-1",
-                        file=audio_file
+                        file=audio_file,
+                        response_format="verbose_json"  # Get detailed response with timestamps
                     )
-                return response.text
+                
+                # Format transcript with timestamps
+                segments = response.segments
+                formatted_transcript = []
+                for segment in segments:
+                    start_time = int(float(segment.start))
+                    text = segment.text.strip()
+                    timestamp = f"[{start_time//60:02d}:{start_time%60:02d}]"
+                    formatted_transcript.append(f"{timestamp} {text}")
+                
+                return "\n".join(formatted_transcript)
         except Exception as e:
             logger.error(f"OpenAI transcription failed: {e}")
             raise

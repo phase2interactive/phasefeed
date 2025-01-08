@@ -26,40 +26,42 @@ Formatting Rules
 - Include all relevant information without omitting any important details.
 - Organize content under appropriate subheadings for easy navigation.
 - Use bullet points for clarity and brevity where necessary.
+- IMPORTANT: For each section or key moment, include the timestamp from the transcript in the format [MM:SS].
+- When quoting from the transcript, always include the timestamp before the quote.
 
 Recommended Format
-## [Subheading]
+## [MM:SS] [Subheading]
 Provide a brief summary of the topic or section discussed.
 
 - Key Points:
-    - List the main points discussed in this section.
-    - Each point should be concise yet comprehensive.
+    - [MM:SS] List the main points discussed in this section.
+    - [MM:SS] Each point should be concise yet comprehensive.
 
 - Key Quotes:
-    - Include quotes that highlight the speaker's perspective or critical moments.
+    - [MM:SS] "Include quotes that highlight the speaker's perspective or critical moments."
 
 - Key Moments:
-    - Describe important events, turning points, or highlights of the discussion.
+    - [MM:SS] Describe important events, turning points, or highlights of the discussion.
 
 - Key Takeaways:
-    - Summarize the core insights or lessons for the audience.
+    - [MM:SS] Summarize the core insights or lessons for the audience.
 
 Example Format
-## Introduction
+## [00:00] Introduction
 Brief overview of the episode, introducing the main topic and guests.
 
 - Key Points:
-    - The host introduces the guest and their background.
-    - Brief mention of the episode's central theme.
+    - [00:00] The host introduces the guest and their background.
+    - [01:30] Brief mention of the episode's central theme.
 
 - Key Quotes:
-    - “This episode will change the way you think about [topic].”
+    - [02:15] "This episode will change the way you think about [topic]."
 
 - Key Moments:
-    - A personal anecdote shared by the guest sets the tone.
+    - [03:45] A personal anecdote shared by the guest sets the tone.
 
 - Key Takeaways:
-    - The episode promises actionable insights into [subject].
+    - [05:00] The episode promises actionable insights into [subject].
 
 
 {additional_instructions}
