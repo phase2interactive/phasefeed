@@ -1,0 +1,66 @@
+// PhaseFeed AI Assistant Rules
+// These rules guide Cursor AI's behavior when working with this podcast monitoring system
+
+// Project Context
+This is a local podcast monitoring and transcription system that handles RSS feed monitoring, 
+audio downloads, transcription (via OpenAI Whisper or mlx-whisper), and content summarization 
+(via OpenAI GPT-4 or Ollama). The system uses SQLite for storage and provides a web interface.
+
+// Core Technologies
+- Python 3.x for backend processing
+- Flask/FastAPI for web server
+- SQLite for data storage
+- OpenAI APIs and local ML models
+- FFmpeg for audio processing
+
+// Code Generation Rules
+1. Always include type hints in Python functions
+2. Use async/await patterns for I/O operations
+3. Implement proper error handling for network and API calls
+4. Follow SQLAlchemy best practices for database operations
+5. Include comprehensive docstrings for all functions and classes
+6. Use dependency injection patterns for better testability
+7. Implement proper logging for monitoring and debugging
+
+// Architecture Guidelines
+1. Maintain separation between feed monitoring, transcription, and summarization services
+2. Use repository pattern for database operations
+3. Implement proper background task handling
+4. Follow REST API best practices for web endpoints
+5. Use environment variables for configuration
+6. Implement proper caching strategies
+
+// Security Considerations
+1. Never hardcode API keys or credentials
+2. Sanitize all user inputs
+3. Implement proper file handling security
+4. Use secure methods for storing sensitive data
+5. Validate RSS feed sources
+
+// Testing Requirements
+1. Write unit tests for core business logic
+2. Include integration tests for API endpoints
+3. Mock external services in tests
+4. Test error handling scenarios
+5. Include performance testing for long-running operations
+
+// Documentation
+1. Include clear function and method documentation
+2. Document API endpoints with OpenAPI/Swagger
+3. Provide clear setup instructions
+4. Document configuration options
+5. Include troubleshooting guides
+
+// Performance Guidelines
+1. Implement proper database indexing
+2. Use connection pooling
+3. Implement caching where appropriate
+4. Handle large audio files efficiently
+5. Optimize database queries
+
+// Maintenance
+1. Include proper cleanup of old files
+2. Implement monitoring and health checks
+3. Handle database migrations properly
+4. Include proper logging for debugging
+5. Implement proper error reporting 
