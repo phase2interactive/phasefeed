@@ -17,3 +17,5 @@ ollama
 markdown2
 tiktoken<0.7.0,>=0.6.0
 langchain-text-splitters>=0.0.1
+yt-dlp>=2023.12.30
+ffmpeg-python>=0.2.0

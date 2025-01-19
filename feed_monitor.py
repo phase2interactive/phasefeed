@@ -2,7 +2,7 @@ import feedparser
 import requests
 import os
 import datetime
-from database import PodcastEpisode, get_db_session, Show
+from database import Episode, get_db_session, Show
 import config
 import logging
 from urllib.parse import urlparse
@@ -64,7 +64,7 @@ def check_feeds():
             for entry in sorted_entries[:config.MAX_EPISODES_PER_FEED]:
                 # Skip if episode already exists
                 existing = (
-                    session.query(PodcastEpisode)
+                    session.query(Episode)
                     .filter_by(show_id=show.id, episode_title=entry.title)
                     .first()
                 )
@@ -75,7 +75,7 @@ def check_feeds():
                 if hasattr(entry, "published_parsed"):
                     pub_date = datetime.datetime(*entry.published_parsed[:6])
 
-                new_episode = PodcastEpisode(
+                new_episode = Episode(
                     show_id=show.id,
                     episode_title=entry.title,
                     pub_date=pub_date
@@ -94,7 +94,7 @@ def download_new_episodes():
     """Download audio files for episodes that haven't been downloaded yet."""
     session = get_db_session()
     episodes_to_download = (
-        session.query(PodcastEpisode)
+        session.query(Episode)
         .filter_by(downloaded=False)
         .all()
     )

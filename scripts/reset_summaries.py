@@ -13,7 +13,7 @@ import sys
 # Add parent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import get_db_session, PodcastEpisode, EpisodeContent
+from database import get_db_session, Episode, EpisodeContent
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +24,7 @@ def reset_summaries():
     session = get_db_session()
     try:
         # Get all episodes that have been summarized
-        episodes = session.query(PodcastEpisode).filter_by(summarized=True).all()
+        episodes = session.query(Episode).filter_by(summarized=True).all()
         
         for ep in episodes:
             # Delete the summary file if it exists

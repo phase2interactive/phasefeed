@@ -1,7 +1,7 @@
 import os
 import logging
 from ollama import Client
-from database import PodcastEpisode, get_db_session, update_episode_content
+from database import Episode, get_db_session, update_episode_content
 import config
 import openai
 from abc import ABC, abstractmethod
@@ -267,7 +267,7 @@ def summarize_episodes():
     """Find all transcribed but not summarized episodes and generate summaries."""
     session = get_db_session()
     episodes = (
-        session.query(PodcastEpisode)
+        session.query(Episode)
         .filter_by(transcribed=True, summarized=False)
         .all()
     )
@@ -357,7 +357,7 @@ def summarize_episodes():
 def get_summary(episode_id):
     """Retrieve summary for a specific episode."""
     session = get_db_session()
-    episode = session.query(PodcastEpisode).filter_by(id=episode_id).first()
+    episode = session.query(Episode).filter_by(id=episode_id).first()
     
     if not episode or not episode.summary_path:
         return None

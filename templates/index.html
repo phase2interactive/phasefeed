@@ -362,6 +362,43 @@
             font-size: 0.875rem;
             text-align: center;
         }
+
+        .content-type {
+            margin-bottom: 0.5rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge.youtube {
+            background-color: #ff0000;
+            color: white;
+        }
+
+        .badge.podcast {
+            background-color: #8b5cf6;
+            color: white;
+        }
+
+        .thumbnail {
+            margin: 1rem 0;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .thumbnail img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -414,10 +451,23 @@
                     <article class="episode-card" id="episode-{{ episode.id }}">
                         <div class="episode-header">
                             <div>
+                                <div class="content-type">
+                                    {% if episode.content_type == 'YOUTUBE' %}
+                                        <span class="badge youtube">YouTube</span>
+                                    {% else %}
+                                        <span class="badge podcast">Podcast</span>
+                                    {% endif %}
+                                </div>
                                 <h2 class="podcast-title">{{ episode.podcast_title }}</h2>
                                 <h3 class="episode-title">{{ episode.episode_title }}</h3>
                             </div>
                         </div>
+                        
+                        {% if episode.content_type == 'YOUTUBE' and episode.thumbnail_url %}
+                        <div class="thumbnail">
+                            <img src="{{ episode.thumbnail_url }}" alt="Video thumbnail" loading="lazy">
+                        </div>
+                        {% endif %}
                         
                         <div class="meta">
                             <span>{{ episode.formatted_date }}</span>
