@@ -1,8 +1,8 @@
 # PhaseFeed
 
-A local podcast monitoring and transcription system that:
-- Monitors RSS feeds for new podcast episodes
-- Downloads new episodes automatically
+A local podcast and YouTube monitoring system that:
+- Monitors RSS feeds for new podcast episodes and YouTube channels for new videos
+- Downloads new episodes and YouTube videos automatically
 - Transcribes audio using either OpenAI Whisper API or local mlx-whisper
 - Summarizes content using either OpenAI GPT-4 or local LLMs via Ollama
 - Stores metadata in SQLite
@@ -49,12 +49,18 @@ cp .env.example .env
 The application can be configured through `config.py`. Key settings include:
 
 ### Storage Configuration
-- `AUDIO_STORAGE_PATH`: Where to store downloaded podcasts (default: `~/Podcasts`)
+- `AUDIO_STORAGE_PATH`: Where to store downloaded podcasts and YouTube audio (default: `~/Podcasts`)
 - `TRANSCRIPT_STORAGE_PATH`: Where to store transcripts (default: `~/Podcasts/Transcripts`)
 
 ### Feed Configuration
 - `PODCAST_FEEDS`: List of RSS feed URLs to monitor
-- `MAX_EPISODES_PER_FEED`: Maximum number of episodes to pull from each feed (default: 5)
+- `YOUTUBE_CHANNELS`: List of YouTube channel URLs to monitor
+- `MAX_EPISODES_PER_FEED`: Maximum number of episodes/videos to pull from each feed (default: 5)
+
+### YouTube Configuration
+- `YOUTUBE_AUDIO_QUALITY`: Audio quality for downloaded videos in kbps (default: 192)
+- `YOUTUBE_MAX_RETRIES`: Number of retry attempts for failed downloads
+- `YOUTUBE_TIMEOUT`: Download timeout in seconds
 
 ### Transcription Configuration
 - `TRANSCRIPTION_MODE`: Choose between "local" or "openai"
