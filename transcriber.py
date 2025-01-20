@@ -4,7 +4,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Optional
 import openai
-from database import PodcastEpisode, get_db_session
+from database import Episode, Show, get_db_session
 import config
 from tqdm import tqdm
 from progress_handler import ProgressListener, create_progress_listener_handle
@@ -197,28 +197,40 @@ class TranscriptionService:
         """Find all downloaded but not transcribed episodes and generate transcripts."""
         session = get_db_session()
         episodes = (
-            session.query(PodcastEpisode)
-            .filter_by(downloaded=True, transcribed=False)
+            session.query(Episode)
+            .join(Show)
+            .filter(
+                Episode.downloaded == True,
+                Episode.transcribed == False
+            )
             .all()
         )
-
-        for ep in tqdm(episodes, desc="Processing episodes", unit="episode"):
-            if not ep.audio_path or not os.path.exists(ep.audio_path):
-                logger.error(f"Audio file not found for {ep.episode_title}")
-                continue
-
+        
+        if not episodes:
+            logger.info("No new episodes to transcribe")
+            return
+            
+        logger.info(f"Found {len(episodes)} episodes to transcribe")
+        for ep in episodes:
             try:
-                logger.info(f"Starting transcription of {ep.episode_title}...")
+                logger.info(f"Processing episode: {ep.episode_title}")
                 
-                # Ensure transcript directory exists
-                self.ensure_transcript_dir()
-                
-                # Generate transcript with progress tracking
-                progress_listener = TranscriptionProgressListener(ep.episode_title)
-                transcript = self.transcriber.transcribe_audio(ep.audio_path, progress_listener)
-                
-                # Format transcript with metadata
-                transcript_text = f"""Title: {ep.episode_title}
+                if not ep.audio_path or not os.path.exists(ep.audio_path):
+                    logger.error(f"Audio file not found for {ep.episode_title}")
+                    continue
+
+                try:
+                    logger.info(f"Starting transcription of {ep.episode_title}...")
+                    
+                    # Ensure transcript directory exists
+                    self.ensure_transcript_dir()
+                    
+                    # Generate transcript with progress tracking
+                    progress_listener = TranscriptionProgressListener(ep.episode_title)
+                    transcript = self.transcriber.transcribe_audio(ep.audio_path, progress_listener)
+                    
+                    # Format transcript with metadata
+                    transcript_text = f"""Title: {ep.episode_title}
 Podcast: {ep.show.title}
 Date: {ep.pub_date}
 Duration: {ep.duration} seconds
@@ -226,26 +238,29 @@ Duration: {ep.duration} seconds
 Transcript:
 {transcript}
 """
-                
-                # Save transcript
-                safe_filename = "".join([c for c in ep.episode_title if c.isalpha() or c.isdigit() or c in ' ._-']).rstrip()
-                transcript_path = os.path.join(
-                    config.TRANSCRIPT_STORAGE_PATH,
-                    f"{ep.show.title}_{safe_filename}.txt"
-                )
-                
-                with open(transcript_path, "w", encoding="utf-8") as f:
-                    f.write(transcript_text)
-                
-                # Update database
-                ep.transcript_path = transcript_path
-                ep.transcribed = True
-                session.commit()
-                
-                logger.info(f"Successfully transcribed: {ep.episode_title}")
-                
+                    
+                    # Save transcript
+                    safe_filename = "".join([c for c in ep.episode_title if c.isalpha() or c.isdigit() or c in ' ._-']).rstrip()
+                    transcript_path = os.path.join(
+                        config.TRANSCRIPT_STORAGE_PATH,
+                        f"{ep.show.title}_{safe_filename}.txt"
+                    )
+                    
+                    with open(transcript_path, "w", encoding="utf-8") as f:
+                        f.write(transcript_text)
+                    
+                    # Update database
+                    ep.transcript_path = transcript_path
+                    ep.transcribed = True
+                    session.commit()
+                    
+                    logger.info(f"Successfully transcribed: {ep.episode_title}")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to transcribe {ep.episode_title}: {e}")
+                    continue
             except Exception as e:
-                logger.error(f"Failed to transcribe {ep.episode_title}: {e}")
+                logger.error(f"Failed to process episode {ep.episode_title}: {e}")
                 continue
 
         session.close()
@@ -253,7 +268,7 @@ Transcript:
     def get_transcript(self, episode_id):
         """Retrieve transcript for a specific episode."""
         session = get_db_session()
-        episode = session.query(PodcastEpisode).filter_by(id=episode_id).first()
+        episode = session.query(Episode).filter_by(id=episode_id).first()
         
         if not episode or not episode.transcript_path:
             return None
@@ -266,6 +281,13 @@ Transcript:
             return None
         finally:
             session.close()
+
+def get_transcriber() -> BaseTranscriber:
+    """Initialize and return the appropriate transcriber based on configuration."""
+    if config.TRANSCRIPTION_MODE == "openai":
+        return OpenAIWhisperTranscriber()
+    else:  # default to local
+        return LocalWhisperTranscriber(model_path=config.WHISPER_MODEL)
 
 # Context manager for null progress listener
 from contextlib import contextmanager

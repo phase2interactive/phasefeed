@@ -2,6 +2,9 @@ import sys
 import threading
 from typing import Union
 import tqdm
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ProgressListener:
     def on_progress(self, current: Union[int, float], total: Union[int, float]):
@@ -69,23 +72,20 @@ def create_progress_listener_handle(progress_listener: ProgressListener):
 
 class DownloadProgressBar:
     def __init__(self, episode_title):
-        self.pbar = None
         self.episode_title = episode_title
-    
-    def __call__(self, block_num, block_size, total_size):
-        if not self.pbar:
-            self.pbar = tqdm.tqdm(
-                total=total_size,
-                desc=f"Downloading {self.episode_title}",
-                unit='iB',
-                unit_scale=True,
-                unit_divisor=1024,
-            )
+        self.started = False
         
-        downloaded = block_num * block_size
-        if downloaded <= total_size:
-            self.pbar.update(block_size)
+    def yt_dlp_hook(self, d):
+        if d['status'] == 'downloading':
+            if not self.started:
+                self.started = True
+                logger.info(f"Starting download of: {self.episode_title}")
+            
+            if 'total_bytes' in d and 'downloaded_bytes' in d:
+                percentage = (d['downloaded_bytes'] / d['total_bytes']) * 100
+                logger.info(f"Download progress for {self.episode_title}: {percentage:.1f}%")
+        elif d['status'] == 'finished':
+            logger.info(f"Download completed for: {self.episode_title}")
     
     def close(self):
-        if self.pbar:
-            self.pbar.close() 
+        pass 

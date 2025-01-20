@@ -6,7 +6,7 @@ from fastapi.requests import Request
 import os
 import config
 from datetime import datetime
-from database import get_db_session, EpisodeContent, PodcastEpisode
+from database import get_db_session, EpisodeContent, Episode
 from urllib.parse import unquote
 import markdown2
 import logging
@@ -38,7 +38,7 @@ def get_episodes():
         query = (
             session.query(EpisodeContent)
             .join(EpisodeContent.episode)
-            .order_by(PodcastEpisode.pub_date.desc())
+            .order_by(Episode.pub_date.desc())
         )
         logger.debug(f"Executing query: {query}")
         
@@ -59,7 +59,9 @@ def get_episodes():
                     'formatted_date': content.formatted_date,
                     'duration_formatted': content.duration_formatted,
                     'size_formatted': content.size_formatted,
-                    'summary': summary_html
+                    'summary': summary_html,
+                    'content_type': content.episode.show.content_type.name,
+                    'thumbnail_url': content.episode.thumbnail_url
                 }
                 episodes_data.append(episode_data)
             except Exception as e:
@@ -105,8 +107,8 @@ async def get_audio(episode_id: int):
     session = get_db_session()
     try:
         episode = (
-            session.query(PodcastEpisode)
-            .filter(PodcastEpisode.id == episode_id)
+            session.query(Episode)
+            .filter(Episode.id == episode_id)
             .first()
         )
         

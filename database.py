@@ -1,13 +1,18 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, ForeignKey, Text
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, ForeignKey, Text, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 import datetime
 import config
 import os
+import enum
 
 engine = create_engine(f"sqlite:///{config.DB_PATH}", echo=False)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
+
+class ContentType(enum.Enum):
+    PODCAST = "podcast"
+    YOUTUBE = "youtube"
 
 class Show(Base):
     __tablename__ = "shows"
@@ -15,12 +20,14 @@ class Show(Base):
     id = Column(Integer, primary_key=True, index=True)
     feed_url = Column(String, unique=True, index=True)
     title = Column(String)
+    content_type = Column(Enum(ContentType), default=ContentType.PODCAST)
+    channel_id = Column(String, index=True)  # For YouTube channels
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Relationship to episodes
-    episodes = relationship("PodcastEpisode", back_populates="show", cascade="all, delete-orphan")
+    episodes = relationship("Episode", back_populates="show", cascade="all, delete-orphan")
 
-class PodcastEpisode(Base):
+class Episode(Base):
     __tablename__ = "episodes"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -36,6 +43,9 @@ class PodcastEpisode(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     file_size = Column(Integer)  # Size in bytes
     duration = Column(Integer)   # Duration in seconds
+    video_id = Column(String, index=True)  # For YouTube videos
+    thumbnail_url = Column(String)  # For YouTube videos
+    original_url = Column(String)  # Original URL (video URL for YouTube, audio URL for podcasts)
 
     # Relationship to show
     show = relationship("Show", back_populates="episodes")
@@ -50,10 +60,12 @@ class EpisodeContent(Base):
     size_formatted = Column(String)
     summary = Column(Text)
     audio_url = Column(String)
+    thumbnail_url = Column(String)  # For YouTube video thumbnails
+    original_url = Column(String)  # Original URL (video URL for YouTube, audio URL for podcasts)
     last_updated = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Relationship to parent episode
-    episode = relationship("PodcastEpisode", backref="content")
+    episode = relationship("Episode", backref="content")
 
 def init_db():
     """Initialize the database, creating tables if they don't exist."""
@@ -72,8 +84,8 @@ def cleanup_old_episodes(days=None):
     cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
     
     old_episodes = (
-        session.query(PodcastEpisode)
-        .filter(PodcastEpisode.created_at < cutoff_date)
+        session.query(Episode)
+        .filter(Episode.created_at < cutoff_date)
         .all()
     )
     
@@ -132,6 +144,13 @@ def update_episode_content(session, episode):
         content.audio_url = f"/audio/{os.path.basename(episode.audio_path)}"
     else:
         content.audio_url = None
+
+    # Add YouTube-specific information if applicable
+    if episode.show.content_type == ContentType.YOUTUBE:
+        if episode.video_id:
+            content.original_url = f"https://www.youtube.com/watch?v={episode.video_id}"
+        if episode.thumbnail_url:
+            content.thumbnail_url = episode.thumbnail_url
     
     content.last_updated = datetime.datetime.utcnow()
     session.commit() 
